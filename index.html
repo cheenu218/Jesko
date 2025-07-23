@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Jesko Mini Racing Game</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    #hud {
+      position: absolute; top: 10px; left: 10px;
+      color: white; font-family: Arial; font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">Speed: 0 km/h | Time: 0.0s | Lap: 1</div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
+  <script>
+    let scene, camera, renderer, carMesh, carBody, world;
+    let keys = {}, speed = 0, startTime = Date.now();
+
+    init(); animate();
+
+    function init() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, .1, 1000);
+      camera.position.set(0,5,12);
+      renderer = new THREE.WebGLRenderer({antialias:true});
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      scene.add(new THREE.AmbientLight(0xffffff, .6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, .8);
+      dirLight.position.set(10,20,10);
+      scene.add(dirLight);
+
+      const track = new THREE.Mesh(
+        new THREE.PlaneGeometry(200,200),
+        new THREE.MeshStandardMaterial({color:0x333333})
+      );
+      track.rotation.x = -Math.PI/2;
+      scene.add(track);
+
+      world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
+      const groundBody = new CANNON.Body({ mass:0 });
+      groundBody.addShape(new CANNON.Plane());
+      world.addBody(groundBody);
+
+      new THREE.GLTFLoader().load('2019__koenigsegg_jesko.glb', gltf => {
+        carMesh = gltf.scene;
+        carMesh.scale.set(1,1,1);
+        carMesh.position.set(0,0.5,0);
+        scene.add(carMesh);
+
+        const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2));
+        carBody = new CANNON.Body({ mass: 1500 });
+        carBody.addShape(carShape);
+        carBody.position.set(0,0.5,0);
+        world.addBody(carBody);
+      });
+
+      window.addEventListener('keydown', e => keys[e.code] = true);
+      window.addEventListener('keyup', e => keys[e.code] = false);
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (carBody) {
+        if (keys['ArrowUp']||keys['KeyW']) carBody.velocity.z -= 0.05;
+        if (keys['ArrowDown']||keys['KeyS']) carBody.velocity.z += 0.05;
+        if (keys['ArrowLeft']||keys['KeyA']) carBody.angularVelocity.y += 0.01;
+        if (keys['ArrowRight']||keys['KeyD']) carBody.angularVelocity.y -= 0.01;
+
+        carMesh.position.copy(carBody.position);
+        carMesh.quaternion.copy(carBody.quaternion);
+        speed = carBody.velocity.length() * 3.6;
+      }
+
+      world.step(1/60);
+      document.getElementById('hud').innerText =
+        `Speed: ${speed.toFixed(1)} km/h | Time: ${((Date.now() - startTime)/1000).toFixed(1)} s | Lap: 1`;
+
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>
